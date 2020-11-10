@@ -59,4 +59,6 @@ Example:
 ## Dependencies
 
 - Python 3
+    - pip
+    - venv
 - AWS CLI

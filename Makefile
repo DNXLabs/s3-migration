@@ -9,9 +9,9 @@ create-env:
 .PHONY: install
 install: create-env
 	@echo "make install"
-	source .venv/bin/activate && pip3 install -r requirements.txt
+	. .venv/bin/activate && pip3 install -r requirements.txt
 
 .PHONY: migrate
 migrate: create-env install
 	@echo "make migrate"
-	source .venv/bin/activate && python3 ./src/migrate.py
+	. .venv/bin/activate && python3 ./src/migrate.py
