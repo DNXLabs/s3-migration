@@ -2,11 +2,12 @@ import os
 import time
 import json
 import subprocess
+import logging
 from datetime import datetime
-from termcolor import colored
+from multiprocessing import Pool
 
 
-def read_config(mapping_file):
+def read_config(mapping_file, logger):
 
     data = {}
 
@@ -14,11 +15,16 @@ def read_config(mapping_file):
         with open(mapping_file, 'r') as file:
             data = json.load(file)
 
+    except FileNotFoundError:
+        logger.error("File {} not found".format(mapping_file))
+        exit(1)
+
     except Exception as error:
-        print(
+        logger.error(
             "An exception occurred while loading the mapping:\n{}"
             .format(error)
         )
+        exit(1)
 
     finally:
         file.close()
@@ -26,23 +32,58 @@ def read_config(mapping_file):
     return data
 
 
-def prepare_log_folder(start_date, sync_id):
+def prepare_log_folder(start_date, subprocess_id=""):
 
-    folder1 = start_date.strftime("%Y-%m-%d_%H:%M:%S")
-    folder2 = sync_id
+    folder_date = start_date.strftime("%Y-%m-%d_%H:%M:%S")
 
-    path = "./logs/{}/{}/".format(folder1, folder2)
+    if subprocess_id:
+        path = "./logs/{}/{}/".format(folder_date, subprocess_id)
+    else:
+        path = "./logs/{}/".format(folder_date)
+
     os.makedirs(path, exist_ok=True)
 
     return path
 
 
-def copy_to_s3(log_path, mapping, test_mode):
+def setup_logger(name, log_file, level=logging.INFO):
+
+    formatter = logging.Formatter(
+        '%(asctime)s %(levelname)8s %(message)s')
+
+    # File Handler
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setFormatter(formatter)
+
+    formatter = logging.Formatter(
+        '%(name)-8s: %(levelname)8s %(message)s')
+
+    # Console Handler
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+
+    logger = logging.getLogger(name)
+
+    logger.setLevel(level)
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+
+    return logger
+
+
+def copy_to_s3(mapping):
+
+    start_time = time.time()
+
+    logger = setup_logger(
+        mapping["id"], mapping["log_folder"] + "/logfile.log")
+
+    logger.info('Subprocess started')
 
     additional_commands = []
-    s3sync = "aws s3 sync %s %s %s >> %s"
+    s3sync = "aws s3 sync %s %s %s --noprogress >> %s"
 
-    if test_mode:
+    if mapping["test_mode"]:
         additional_commands.append("--dryrun")
 
     if mapping["exclude"]:
@@ -54,7 +95,7 @@ def copy_to_s3(log_path, mapping, test_mode):
             additional_commands.append("--include=\"{}\"".format(exclude))
 
     extra_commands = " ".join(additional_commands)
-    log_output = log_path + "files_finished.txt"
+    log_output = mapping["log_folder"] + "files_processed.txt"
 
     command = s3sync \
         % (mapping["source"],
@@ -62,21 +103,21 @@ def copy_to_s3(log_path, mapping, test_mode):
            extra_commands,
            log_output)
 
-    print(
-        colored("Mapping ID: ", "yellow") + mapping["id"] + " / " +
-        colored("s3sync command: ", "yellow") + command
-    )
+    logger.info('Subprocess command {}'.format(command))
 
     try:
         # Executes command and returns stdout and stderr while running...
         for log in execute_command(command):
-            print(log, end="")
-            send_log(log_path, log)
+            logger.info(log)
 
     except Exception as error:
-        print(colored(error, "red"))
-        send_log(log_path, error)
-        exit(1)
+        logger.error(error)
+
+    finally:
+        logger.info('Subprocess concluded in {} seconds'.format(
+            time.time() - start_time))
+
+        logger.info('Subprocess finished')
 
 
 def execute_command(command):
@@ -98,40 +139,48 @@ def execute_command(command):
         raise subprocess.CalledProcessError(return_code, command)
 
 
-def send_log(log_path, log):
+def execute_command_in_background(command):
 
-    with open(log_path + '/header.txt', 'w') as f:
-        print(log, file=f)  # Python 3.x
+    result = subprocess.run(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        universal_newlines=True,
+        shell=True
+    )
+
+    return result
 
 
-def main():
+def main(mapping_file='./mapping.json'):
     start_time = time.time()
     start_date = datetime.now()
 
-    print(
-        colored('Sync started at {}'.format(start_date), "green")
-    )
+    # Prepare log folder for main program
+    log_folder = prepare_log_folder(start_date)
+
+    logger = setup_logger(
+        "main", log_folder + "/logfile.log")
+
+    logger.info('Sync started')
 
     # Read the mapping configuration from CSV file
-    config = read_config('./mapping.json')
-    test_mode = config["test"]
+    config = read_config(mapping_file, logger)
 
+    # Adjust mapping for individual processing and create log folders
     for mapping in config["mapping"]:
-        # Prepare folder with relevant logs
-        log_path = prepare_log_folder(start_date, mapping["id"])
+        # Add variable for test mode
+        mapping["test_mode"] = config["test"]
+        # Prepare log folder for individual subprocess
+        mapping["log_folder"] = prepare_log_folder(start_date, mapping["id"])
 
-        # Copy to S3 bucket via AWS CLI s3 sync command
-        copy_to_s3(log_path, mapping, test_mode)
+    pool = Pool(10)
+    pool.map(copy_to_s3, config["mapping"])
 
-    end_date = datetime.now()
-    print(
-        colored('Sync finished at {}'.format(end_date), "green")
-    )
-    print(
-        colored('Sync concluded in {} seconds'.format(
-            time.time() - start_time
-        ), "green")
-    )
+    logger.info(
+        'Sync concluded in {} seconds'.format(time.time() - start_time))
+
+    logger.info('Sync finished')
 
 
 if __name__ == '__main__':
