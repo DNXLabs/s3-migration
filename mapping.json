@@ -1,0 +1,22 @@
+{
+    "test": true,
+    "mapping": [
+        {
+            "id": "global",
+            "source": "./files",
+            "include": [],
+            "exclude": [
+                "*folder1/*",
+                "*folder3/*"
+            ],
+            "target": "s3://my_bucket/"
+        },
+        {
+            "id": "folder1",
+            "source": "./files/folder1",
+            "include": [],
+            "exclude": [],
+            "target": "s3://my_bucket/new_folder_1"
+        }
+    ]
+}
