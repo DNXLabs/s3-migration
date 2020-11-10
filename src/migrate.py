@@ -47,11 +47,11 @@ def copy_to_s3(log_path, mapping, test_mode):
 
     if mapping["exclude"]:
         for exclude in mapping["exclude"]:
-            additional_commands.append("--exclude {}".format(exclude))
+            additional_commands.append("--exclude=\"{}\"".format(exclude))
 
     if mapping["include"]:
         for exclude in mapping["include"]:
-            additional_commands.append("--include {}".format(exclude))
+            additional_commands.append("--include=\"{}\"".format(exclude))
 
     extra_commands = " ".join(additional_commands)
     log_output = log_path + "files_finished.txt"
