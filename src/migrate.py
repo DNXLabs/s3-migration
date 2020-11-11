@@ -56,7 +56,7 @@ def setup_logger(name, log_file, level=logging.INFO):
     file_handler.setFormatter(formatter)
 
     formatter = logging.Formatter(
-        '%(name)-12s: %(levelname)8s %(message)s')
+        '%(name)-20s: %(levelname)8s %(message)s')
 
     # Console Handler
     console_handler = logging.StreamHandler()
