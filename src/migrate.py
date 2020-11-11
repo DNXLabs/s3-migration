@@ -81,7 +81,7 @@ def copy_to_s3(mapping):
     logger.info('Subprocess started')
 
     additional_commands = []
-    s3sync = "aws s3 sync %s %s %s --noprogress >> %s"
+    s3sync = "aws s3 sync %s %s %s --no-progress >> %s"
 
     if mapping["test_mode"]:
         additional_commands.append("--dryrun")
