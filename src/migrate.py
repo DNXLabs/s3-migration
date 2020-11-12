@@ -1,6 +1,7 @@
 import os
 import time
 import json
+import csv
 import subprocess
 import logging
 from datetime import datetime
@@ -108,16 +109,98 @@ def copy_to_s3(mapping):
     try:
         # Executes command and returns stdout and stderr while running...
         for log in execute_command(command):
-            logger.info(log)
+            logger.info(log.strip())
 
     except Exception as error:
         logger.error(error)
 
     finally:
+        logger.info('Migration concluded')
+        logger.info('Parsing log files...')
+
+        parse_file_processed(log_output, logger)
+
         logger.info('Subprocess concluded in {} seconds'.format(
             time.time() - start_time))
 
         logger.info('Subprocess finished')
+
+
+def parse_file_processed(log_file, logger):
+
+    counter = {}
+
+    try:
+        csv_file_name = log_file.replace(".txt", ".csv")
+
+        # Create .csv file with conversion
+        csv_file = open(csv_file_name, 'w', newline='')
+        writer = csv.writer(csv_file, delimiter=';')
+        writer.writerow(["Action", "Source", "Target"])
+
+        # Open .txt file with list of files processed
+        txt_file = open(log_file, 'r')
+        lines = txt_file.readlines()
+
+        for line in lines:
+            # Ignore empty lines
+            if not line:
+                continue
+
+            # Strips the newline character
+            original = line.strip()
+
+            # Remove dryrun message (only for tests)
+            formatted = original.replace("(dryrun) ", "")
+
+            # Separate the action from the rest of the log
+            action, formatted = formatted.split(": ", 1)
+
+            # Split source and target
+            results = formatted.split(" to ")
+
+            # Exception scenario where " to " is also part of the filename
+            if len(results) > 2:
+                length = len(results)
+                mean = int(length / 2)
+
+                source = " to ".join(results[0:mean])
+                target = " to ".join(results[mean:length])
+            else:
+                source = results[0]
+                target = results[1]
+
+            logger.debug(
+                "Action: " + action + "\n" +
+                "Source: " + source + "\n" +
+                "Target: " + target)
+
+            # Count the total of files based on action
+            if action in counter:
+                counter[action] += 1
+            else:
+                counter[action] = 1
+
+            # Write content to .csv file
+            writer.writerow([action, source, target])
+
+        # Output total of files processed
+        logger.info("Total files processed:")
+        for key, value in counter.items():
+            logger.info("\t{} = {}".format(key, value))
+
+    except FileNotFoundError:
+        logger.error("File {} not found".format(log_file))
+
+    except Exception as error:
+        logger.error(
+            "An exception occurred while loading the processed files:\n{}"
+            .format(error)
+        )
+
+    finally:
+        txt_file.close()
+        csv_file.close()
 
 
 def execute_command(command):
