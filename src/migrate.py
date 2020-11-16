@@ -4,6 +4,9 @@ import json
 import csv
 import subprocess
 import logging
+import collections
+import functools
+import operator
 from datetime import datetime
 from multiprocessing import Pool
 
@@ -31,6 +34,40 @@ def read_config(mapping_file, logger):
         file.close()
 
     return data
+
+
+def check_invalid_mapping(config, logger):
+
+    invalid = False
+
+    if "test" not in config:
+        logger.error("Mandatory attribute \"test\" is missing")
+        invalid = True
+
+    if "mapping" not in config:
+        logger.error("Mandatory attribute \"mapping\" is missing")
+        invalid = True
+    else:
+        for idx, mapping in enumerate(config["mapping"]):
+            if "id" not in mapping:
+                logger.error(
+                    "Mandatory attribute \"id\"" +
+                    " missing for item {}".format(idx))
+                invalid = True
+
+            if "source" not in mapping:
+                logger.error(
+                    "Mandatory attribute \"source\"" +
+                    " missing for item {}".format(idx))
+                invalid = True
+
+            if "target" not in mapping:
+                logger.error(
+                    "Mandatory attribute \"target\"" +
+                    " missing for item {}".format(idx))
+                invalid = True
+
+    return invalid
 
 
 def prepare_log_folder(start_date, subprocess_id=""):
@@ -87,11 +124,11 @@ def copy_to_s3(mapping):
     if mapping["test_mode"]:
         additional_commands.append("--dryrun")
 
-    if mapping["exclude"]:
+    if "exclude" in mapping:
         for exclude in mapping["exclude"]:
             additional_commands.append("--exclude=\"{}\"".format(exclude))
 
-    if mapping["include"]:
+    if "include" in mapping:
         for exclude in mapping["include"]:
             additional_commands.append("--include=\"{}\"".format(exclude))
 
@@ -118,12 +155,14 @@ def copy_to_s3(mapping):
         logger.info('Migration concluded')
         logger.info('Parsing log files...')
 
-        parse_file_processed(log_output, logger)
+        counter = parse_file_processed(log_output, logger)
 
         logger.info('Subprocess concluded in {} seconds'.format(
             time.time() - start_time))
 
         logger.info('Subprocess finished')
+
+        return counter
 
 
 def parse_file_processed(log_file, logger):
@@ -185,9 +224,12 @@ def parse_file_processed(log_file, logger):
             writer.writerow([action, source, target])
 
         # Output total of files processed
-        logger.info("Total files processed:")
-        for key, value in counter.items():
-            logger.info("\t{} = {}".format(key, value))
+        if counter:
+            logger.info("Total files processed:")
+            for key, value in counter.items():
+                logger.info("\t{} = {}".format(key, value))
+        else:
+            logger.info("No files pending for processing")
 
     except FileNotFoundError:
         logger.error("File {} not found".format(log_file))
@@ -201,6 +243,8 @@ def parse_file_processed(log_file, logger):
     finally:
         txt_file.close()
         csv_file.close()
+
+    return counter
 
 
 def execute_command(command):
@@ -247,8 +291,15 @@ def main(mapping_file='./mapping.json'):
 
     logger.info('Sync started')
 
-    # Read the mapping configuration from CSV file
+    # Read the mapping configuration from json file
     config = read_config(mapping_file, logger)
+
+    logger.info('Validate mapping configuration...')
+
+    # Check if mandatory attributes are available
+    if check_invalid_mapping(config, logger):
+        logger.info('Sync finished due to missing attributes')
+        exit(1)
 
     # Adjust mapping for individual processing and create log folders
     for mapping in config["mapping"]:
@@ -258,7 +309,29 @@ def main(mapping_file='./mapping.json'):
         mapping["log_folder"] = prepare_log_folder(start_date, mapping["id"])
 
     pool = Pool(10)
-    pool.map(copy_to_s3, config["mapping"])
+    results = pool.map(copy_to_s3, config["mapping"])
+
+    # Calculate total count by aggregating all of the results
+    total_count = dict(
+        functools.reduce(
+            operator.add,
+            map(
+                collections.Counter,
+                results
+            )
+        )
+    )
+
+    # Output total of files processed
+    if total_count:
+        logger.info("Grand total of files processed:")
+        for key, value in total_count.items():
+            logger.info("\t{} = {}".format(key, value))
+    else:
+        logger.info("No files pending for processing")
+
+    # Close the multiprocessing pool
+    pool.close()
 
     logger.info(
         'Sync concluded in {} seconds'.format(time.time() - start_time))
