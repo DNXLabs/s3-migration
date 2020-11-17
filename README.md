@@ -56,6 +56,82 @@ Example:
 }
 ```
 
+## Generate your mapping file dynamically
+
+1. Create a file in `./mapping/job_ids.csv` with a single column where each line represents an identifier for each job.
+
+E.g.
+```
+job_1
+job_2
+job_n
+```
+
+2. Adjust the constant MAPPING_TEMPLATE in the file `./src/mapping/template.py` and use the attribute `{{job_id}}` as a tag for automatic replacement. Each line in your .csv file is going to generate a new item in the mapping section of the `mapping.json` file. For example:
+
+The following config...
+
+```
+MAPPING_TEMPLATE = """
+{
+    "id": "{{job_id}}",
+    "source": "/{{job_id}}/uploads/images",
+    "include": [],
+    "exclude": [
+        "*folder1/*",
+        "*folder3/*"
+    ],
+    "target": "s3://my_bucket/{{job_id}}/images"
+}
+"""
+```
+
+... plus the `job_ids.csv` file from above would result in the following `mapping.json` configuration:
+
+```
+{
+    "test": "true",
+    "mapping": [
+        {
+            "id": "job_1",
+            "source": "/job_1/uploads/images",
+            "include": [],
+            "exclude": [
+                "*folder1/*",
+                "*folder3/*"
+            ],
+            "target": "s3://my_bucket/job_1/images"
+        },
+        {
+            "id": "job_2",
+            "source": "/job_2/uploads/images",
+            "include": [],
+            "exclude": [
+                "*folder1/*",
+                "*folder3/*"
+            ],
+            "target": "s3://my_bucket/job_2/images"
+        },
+        {
+            "id": "job_n",
+            "source": "/job_n/uploads/images",
+            "include": [],
+            "exclude": [
+                "*folder1/*",
+                "*folder3/*"
+            ],
+            "target": "s3://my_bucket/job_n/images"
+        }
+    ]
+}
+```
+
+3. After your configuration is concluded just type the command below to generate the `mapping.json` file:
+
+```
+make mapping
+```
+
 ## Dependencies
 
 - Python 3

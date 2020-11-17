@@ -15,3 +15,8 @@ install: create-env
 migrate: create-env install
 	@echo "make migrate"
 	. .venv/bin/activate && python3 ./src/migrate.py
+
+.PHONY: mapping
+mapping: create-env install
+	@echo "make mapping"
+	. .venv/bin/activate && python3 ./src/scripts/mapping.py
