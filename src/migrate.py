@@ -72,7 +72,7 @@ def check_invalid_mapping(config, logger):
 
 def prepare_log_folder(start_date, subprocess_id=""):
 
-    folder_date = start_date.strftime("%Y-%m-%d_%H:%M:%S")
+    folder_date = start_date.strftime("%Y-%m-%d_%H-%M-%S")
 
     if subprocess_id:
         path = "./logs/{}/{}/".format(folder_date, subprocess_id)
