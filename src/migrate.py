@@ -121,7 +121,7 @@ def copy_to_s3(mapping):
     additional_commands = []
     s3sync = "aws s3 sync %s %s %s --no-progress >> %s"
 
-    if mapping["test_mode"]:
+    if mapping["test_mode"] is True:
         additional_commands.append("--dryrun")
 
     if "exclude" in mapping:
