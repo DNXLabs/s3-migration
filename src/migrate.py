@@ -43,6 +43,10 @@ def check_invalid_mapping(config, logger):
     if "test" not in config:
         logger.error("Mandatory attribute \"test\" is missing")
         invalid = True
+    else:
+        if type(config["test"]) != bool:
+            logger.error("Attribute \"test\" is not a valid boolean")
+            invalid = True
 
     if "mapping" not in config:
         logger.error("Mandatory attribute \"mapping\" is missing")
@@ -121,7 +125,7 @@ def copy_to_s3(mapping):
     additional_commands = []
     s3sync = "aws s3 sync %s %s %s --no-progress >> %s"
 
-    if mapping["test_mode"] is True:
+    if mapping["test_mode"]:
         additional_commands.append("--dryrun")
 
     if "exclude" in mapping:

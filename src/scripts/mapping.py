@@ -68,7 +68,7 @@ def setup_logger(name, level=logging.INFO):
 def main(csv_file='./mapping/job_ids.csv', json_file='./mapping/mapping.json'):
 
     output = {
-        "test": "true",
+        "test": True,
         "mapping": []
     }
 
