@@ -4,9 +4,6 @@ import json
 import csv
 import subprocess
 import logging
-import collections
-import functools
-import operator
 from datetime import datetime
 from multiprocessing import Pool
 
