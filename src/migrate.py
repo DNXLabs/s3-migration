@@ -113,6 +113,7 @@ def setup_logger(name, log_file, level=logging.INFO):
 def copy_to_s3(mapping):
 
     start_time = time.time()
+    exception = False
 
     logger = setup_logger(
         mapping["id"], mapping["log_folder"] + "/logfile.log")
@@ -151,6 +152,7 @@ def copy_to_s3(mapping):
 
     except Exception as error:
         logger.error(error)
+        exception = True
 
     finally:
         logger.info('Migration concluded')
@@ -165,7 +167,8 @@ def copy_to_s3(mapping):
 
         return {
             "id": mapping["id"],
-            "counter": counter
+            "counter": counter,
+            "error": exception
         }
 
 
@@ -322,6 +325,14 @@ def main(mapping_file='./mapping.json'):
 
     # Output individual counters per subprocess
     for result in results:
+        if result["error"]:
+            logger.error(
+                "An exception occurred in subprocess {}".format(
+                    result["id"]
+                )
+            )
+            continue
+
         logger.info("Total of files for subprocess {}".format(
             result["id"]
         ))
