@@ -166,7 +166,10 @@ def copy_to_s3(mapping):
 
         logger.info('Subprocess finished')
 
-        return counter
+        return {
+            "id": mapping["id"],
+            "counter": counter
+        }
 
 
 def parse_file_processed(log_file, logger):
@@ -284,6 +287,9 @@ def execute_command_in_background(command):
 
 
 def main(mapping_file='./mapping.json'):
+
+    total_count = {}
+
     start_time = time.time()
     start_date = datetime.now()
 
@@ -315,18 +321,21 @@ def main(mapping_file='./mapping.json'):
     pool = Pool(10)
     results = pool.map(copy_to_s3, config["mapping"])
 
-    # Calculate total count by aggregating all of the results
-    total_count = dict(
-        functools.reduce(
-            operator.add,
-            map(
-                collections.Counter,
-                results
-            )
-        )
-    )
+    # Output individual counters per subprocess
+    for result in results:
+        logger.info("Total of files for subprocess {}".format(
+            result["id"]
+        ))
 
-    # Output total of files processed
+        for key, value in result["counter"].items():
+            logger.info("\t{} = {}".format(key, value))
+
+            if key in total_count:
+                total_count[key] += value
+            else:
+                total_count[key] = value
+
+    # Output grand total of files processed
     if total_count:
         logger.info("Grand total of files processed:")
         for key, value in total_count.items():
