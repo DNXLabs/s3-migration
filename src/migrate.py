@@ -311,6 +311,8 @@ def main(mapping_file='./mapping.json'):
         logger.info('Sync finished due to missing attributes')
         exit(1)
 
+    logger.info("Test mode = {}".format(config["test"]))
+
     # Adjust mapping for individual processing and create log folders
     for mapping in config["mapping"]:
         # Add variable for test mode
